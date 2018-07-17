@@ -11,7 +11,7 @@ import bluetooth
 import sys
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
-
+import RPi.GPIO as GPIO
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -23,7 +23,10 @@ RST = 24     # on the PiOLED this pin isnt used
 DC = 23
 SPI_PORT = 0
 SPI_DEVICE = 0
-
+# setup the button
+button = 18 #Set this pin you are using
+GPIO.setmode(GPIO.BMC)
+GPIO.setup(button,GPIO.IN, pull_up_down=GPIO.PUD_UP)
 disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST, dc=DC, spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE, max_speed_hz=8000000))
 disp.begin()
 
@@ -39,27 +42,32 @@ draw = ImageDraw.Draw(image)
 font = ImageFont.load_default()
 ellipsis = ".   "
 phase = 0
-
+def push_request():
+    nearby_devices = bluetooth.discover_devices(duration=10, lookup_names=True)
+    return nearby_devices
 while True:
+        input_state = GPIO.input(button)
+
         draw.rectangle((0, 0, width, height), outline=0, fill=0)
         draw.text((0, 24), "scanning" + ellipsis, font=font, fill=255)
         disp.image(image)
         disp.display()
+        if(input_state == False):
+            nearby_devices = push_request()
+            print("found %d devices" % len(nearby_devices))
 
-	nearby_devices = bluetooth.discover_devices(duration=10, lookup_names=True)
+            for addr, name in nearby_devices:
+                if (name == "HC-05") or (name == "HC-03") or (name == "HC-06"):
+                    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+                    draw.text((0, 12), "Potential skimmer", font=font, fill=255)
+                    draw.text((0, 24), name + " found.", font=font, fill=255)
+                    draw.text((0, 36), "Skip this pump.", font=font, fill=255)
 
-	print("found %d devices" % len(nearby_devices))
+                    disp.image(image)
+                    disp.display()
+                    time.sleep(5)
 
-	for addr, name in nearby_devices:
-		if (name == "HC-05") or (name == "HC-03") or (name == "HC-06"):
-			draw.rectangle((0, 0, width, height), outline=0, fill=0)
-			draw.text((0, 12), "Potential skimmer", font=font, fill=255)
-			draw.text((0, 24), name + " found.", font=font, fill=255)
-			draw.text((0, 36), "Skip this pump.", font=font, fill=255)
 
-			disp.image(image)
-			disp.display()
-			time.sleep(5)
 
 	phase += 1
 	if phase == 1:
